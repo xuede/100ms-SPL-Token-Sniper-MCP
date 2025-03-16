@@ -14,6 +14,7 @@ dist/
 .env.test
 .env.production
 .env.cloud
+*/.env.cloud
 
 # Logs
 logs/
@@ -32,6 +33,7 @@ yarn-error.log*
 *.sln
 *.sw?
 .DS_Store
+**/.DS_Store
 
 # Temporary files
 .tmp/
@@ -45,3 +47,18 @@ cloud/copy-source.js
 cloud/URLs.js
 cloud/build/
 .gcloud-token
+
+# Reference scripts and test files
+Base scripts/
+test-*.js
+test-*.ts
+test-*.mjs
+*/test-*.js
+
+# Dev and testing utilities
+**/test-ata.js
+**/test-ws-raw.js
+**/test-decode-flow.js
+
+# Google Cloud specific
+.gcloud*
