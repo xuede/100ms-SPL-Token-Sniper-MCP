@@ -39,6 +39,21 @@ yarn-error.log*
 .tmp/
 .temp/
 
+# Reference and backup scripts
+/Base scripts/
+/src/base-scripts/
+
+# Test and development files
+test-*.js
+test-*.ts
+test-*.mjs
+test/
+**/test-*.js
+**/test-ata.js
+**/test-ws-raw.js
+**/test-decode-flow.js
+**/quick-buy-cli.js
+
 # Cloud function temporary/duplicate files
 cloud/real-function.js
 cloud/function.js
@@ -46,19 +61,15 @@ cloud/function.ts
 cloud/copy-source.js
 cloud/URLs.js
 cloud/build/
+cloud/quick-buy.js
+cloud/shyft-market.js
 .gcloud-token
-
-# Reference scripts and test files
-Base scripts/
-test-*.js
-test-*.ts
-test-*.mjs
-*/test-*.js
-
-# Dev and testing utilities
-**/test-ata.js
-**/test-ws-raw.js
-**/test-decode-flow.js
 
 # Google Cloud specific
 .gcloud*
+
+# MCP Inspector
+inspector/
+
+# Temporary scripts
+scripts/create-github-repo.js
