@@ -1,0 +1,42 @@
+{
+  "name": "100ms-sniper-mcp",
+  "version": "1.0.0",
+  "type": "module",
+  "scripts": {
+    "build": "tsc && chmod +x build/index.js",
+    "start": "node build/index.js",
+    "start:mock": "node build/index.mock.js",
+    "postinstall": "node scripts/make-executable.js",
+    "test": "node test/test-sniper.js",
+    "test:pools": "node build/test/test-pool-finding.js",
+    "inspector": "npx @modelcontextprotocol/inspector -- node mcp-wrapper.js",
+    "inspector:mock": "npx @modelcontextprotocol/inspector -- node build/index.mock.js",
+    "launch-claude": "node scripts/launch-claude.js",
+    "launch-claude-mock": "node scripts/launch-claude-mock.js",
+    "setup-demo": "pnpm run build && node scripts/launch-claude-mock.js",
+    "cloud:setup": "cd cloud && bash setup-cloud.sh",
+    "cloud:build": "cd cloud && pnpm install && pnpm run build",
+    "cloud:deploy": "cd cloud && node deploy.js"
+  },
+  "dependencies": {
+    "@modelcontextprotocol/sdk": "^1.7.0",
+    "@raydium-io/raydium-sdk": "^1.3.1-beta.0",
+    "@solana/spl-token": "^0.3.9",
+    "@solana/web3.js": "^1.87.6",
+    "axios": "^1.6.7",
+    "bn.js": "^5.2.1",
+    "bs58": "^5.0.0",
+    "chalk": "^5.3.0",
+    "dotenv": "^16.3.1",
+    "graphql-request": "^7.1.2",
+    "undici": "^6.6.2",
+    "ws": "^8.16.0"
+  },
+  "devDependencies": {
+    "@types/bn.js": "^5.1.5",
+    "@types/bs58": "^4.0.4",
+    "@types/node": "^20.10.4",
+    "@types/ws": "^8.18.0",
+    "typescript": "^5.3.3"
+  }
+}

@@ -1,0 +1,21 @@
+{
+  "name": "100ms-sniper-cloud",
+  "version": "1.0.0",
+  "main": "index.js",
+  "type": "commonjs",
+  "scripts": {
+    "start": "node index.js",
+    "deploy": "node deploy.js"
+  },
+  "engines": {
+    "node": "20.x"
+  },
+  "dependencies": {
+    "@google-cloud/functions-framework": "^3.3.0",
+    "@google-cloud/pubsub": "^3.7.1",
+    "@solana/web3.js": "^1.87.6",
+    "axios": "^1.6.7",
+    "dotenv": "^16.3.1",
+    "ws": "^8.16.0"
+  }
+}
