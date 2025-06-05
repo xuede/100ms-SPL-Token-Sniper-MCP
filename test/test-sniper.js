@@ -11,6 +11,11 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 const rootDir = path.join(__dirname, '..');
 
+// Optional environment variable to run the Snipe Token test without prompts.
+// If SNIPER_TEST_TOKEN is set, its value will be used. If it is set but empty,
+// DEFAULT_SNIPER_TEST_TOKEN will be used instead.
+const DEFAULT_SNIPER_TEST_TOKEN = 'SOL';
+
 // Create readline interface
 const rl = readline.createInterface({
   input: process.stdin,
@@ -117,7 +122,12 @@ async function runTests(mcpServer) {
     await testStatusTool(mcpServer);
     
     // Test 3: Snipe token tool (optional)
-    const runSnipeTest = await prompt(`${colors.yellow}Do you want to test the snipe_token tool? (y/n) ${colors.reset}`);
+    let runSnipeTest;
+    if (process.env.SNIPER_TEST_TOKEN !== undefined) {
+      runSnipeTest = 'y';
+    } else {
+      runSnipeTest = await prompt(`${colors.yellow}Do you want to test the snipe_token tool? (y/n) ${colors.reset}`);
+    }
     if (runSnipeTest.toLowerCase() === 'y') {
       await testSnipeTokenTool(mcpServer);
     }
@@ -252,9 +262,16 @@ async function testConfigureTool(mcpServer) {
 // Test snipe token tool
 async function testSnipeTokenTool(mcpServer) {
   console.log(`\n${colors.cyan}Test: Snipe Token Tool${colors.reset}`);
-  
-  // Get token to snipe
-  const token = await prompt(`${colors.yellow}Enter token to snipe (address or symbol): ${colors.reset}`);
+
+  // Get token to snipe. When SNIPER_TEST_TOKEN is defined, skip the prompt and
+  // use the variable's value or DEFAULT_SNIPER_TEST_TOKEN if empty.
+  let token;
+  if (process.env.SNIPER_TEST_TOKEN !== undefined) {
+    token = process.env.SNIPER_TEST_TOKEN || DEFAULT_SNIPER_TEST_TOKEN;
+    console.log(`${colors.dim}Using token from SNIPER_TEST_TOKEN: ${token}${colors.reset}`);
+  } else {
+    token = await prompt(`${colors.yellow}Enter token to snipe (address or symbol): ${colors.reset}`);
+  }
   
   const request = {
     jsonrpc: '2.0',

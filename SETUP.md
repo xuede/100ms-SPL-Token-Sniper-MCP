@@ -29,6 +29,11 @@ Before you begin, ensure you have the following installed:
 
 You'll need to obtain the following API keys:
 
+- **Infura Project ID**:
+  1. Go to [https://infura.io/](https://infura.io/)
+  2. Sign up for an account
+  3. Create a new Solana project and note the Project ID
+
 - **Helius API Key**:
   1. Go to [https://dev.helius.xyz/](https://dev.helius.xyz/)
   2. Sign up for an account
@@ -73,16 +78,16 @@ pnpm install
 
 2. **Edit the `.env` file with your values**:
    ```
-   # Primary RPC (Helius)
-   RPC_ENDPOINT=https://rpc.helius.xyz/?api-key=YOUR_HELIUS_API_KEY
-   HELIUS_WS_ENDPOINT=wss://rpc.helius.xyz/?api-key=YOUR_HELIUS_API_KEY
+    # Primary RPC (Infura)
+    RPC_ENDPOINT=https://solana-mainnet.infura.io/v3/YOUR_INFURA_PROJECT_ID
+    HELIUS_WS_ENDPOINT=wss://rpc.helius.xyz/?api-key=YOUR_HELIUS_API_KEY
 
    # WebSocket (Shyft)
    SHYFT_WS_ENDPOINT=wss://rpc.shyft.to?api_key=YOUR_SHYFT_API_KEY
 
-   # API Keys
-   HELIUS_API_KEY=YOUR_HELIUS_API_KEY
-   SHYFT_API_KEY=YOUR_SHYFT_API_KEY
+    # API Keys
+    HELIUS_API_KEY=YOUR_HELIUS_API_KEY
+    SHYFT_API_KEY=YOUR_SHYFT_API_KEY
 
    # Wallet Configuration
    WALLET_PRIVATE_KEY=YOUR_WALLET_PRIVATE_KEY
@@ -190,17 +195,17 @@ pnpm run cloud:deploy
 After deployment, copy the URLs from the deployment output:
 
 ```
-US Function URL: https://us-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-east1
-Asia Function URL: https://asia-northeast1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-northeast1
-Europe Function URL: https://europe-west3-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west3
+US Function URL: https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-central1
+Asia Function URL: https://asia-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-east1
+Europe Function URL: https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west1
 ```
 
 Add these to your `.env` file:
 
 ```
-US_FUNCTION_URL=https://us-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-east1
-ASIA_FUNCTION_URL=https://asia-northeast1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-northeast1
-EUROPE_FUNCTION_URL=https://europe-west3-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west3
+US_FUNCTION_URL=https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-central1
+ASIA_FUNCTION_URL=https://asia-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-east1
+EUROPE_FUNCTION_URL=https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west1
 ```
 
 ## Troubleshooting
