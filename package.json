@@ -16,7 +16,8 @@
     "setup-demo": "pnpm run build && node scripts/launch-claude-mock.js",
     "cloud:setup": "cd cloud && bash setup-cloud.sh",
     "cloud:build": "cd cloud && pnpm install && pnpm run build",
-    "cloud:deploy": "cd cloud && node deploy.js"
+    "cloud:deploy": "cd cloud && node deploy.js",
+    "benchmark:rpc": "node scripts/compare-rpc-latency.js"
   },
   "dependencies": {
     "@modelcontextprotocol/sdk": "^1.7.0",
