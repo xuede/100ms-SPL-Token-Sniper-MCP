@@ -20,9 +20,10 @@ The 100ms Raydium Sniper uses Model Context Protocol (MCP) to integrate with Cla
 - Solana wallet with SOL
 - Claude Desktop App
 - Google Cloud account (for multi-region deployment)
-- API keys:
-  - Helius API key (https://helius.xyz)
-  - Shyft API key (https://shyft.to)
+ - API keys:
+   - Infura Project ID (https://infura.io)
+   - Helius API key (https://helius.xyz)
+   - Shyft API key (https://shyft.to)
 
 ## Quick Start
 
@@ -61,6 +62,14 @@ To try the tool in demo mode without real transactions:
 
 ```bash
 pnpm run setup-demo
+```
+
+### Compare RPC Latency
+
+Measure average response times for Infura (primary) and Helius (fallback):
+
+```bash
+pnpm run benchmark:rpc
 ```
 
 This builds the project and launches Claude Desktop with a mock server that simulates responses without requiring API keys or SOL in your wallet.
