@@ -73,9 +73,9 @@ This will:
 1. Build the TypeScript code
 2. Format the environment variables
 3. Deploy to the following regions:
-   - us-east1 (US East)
-   - asia-northeast1 (Tokyo)
-   - europe-west3 (Frankfurt)
+   - us-central1 (Iowa)
+   - asia-east1 (Taiwan)
+   - europe-west1 (Belgium)
 
 ## Troubleshooting Deployment Issues
 
@@ -127,15 +127,15 @@ If you see permissions errors:
 After successful deployment, update your main .env file with the function URLs:
 
 ```
-US_FUNCTION_URL=https://us-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-east1
-ASIA_FUNCTION_URL=https://asia-northeast1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-northeast1
-EUROPE_FUNCTION_URL=https://europe-west3-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west3
+US_FUNCTION_URL=https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-central1
+ASIA_FUNCTION_URL=https://asia-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-east1
+EUROPE_FUNCTION_URL=https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west1
 ```
 
 You can find these URLs in the deployment output or by running:
 
 ```bash
-gcloud functions describe quick-buy-us-east1 --gen2 --region=us-east1 --format="value(serviceConfig.uri)"
+gcloud functions describe quick-buy-us-central1 --gen2 --region=us-central1 --format="value(serviceConfig.uri)"
 ```
 
 ## Monitoring

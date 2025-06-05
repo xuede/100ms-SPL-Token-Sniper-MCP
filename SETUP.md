@@ -195,17 +195,17 @@ pnpm run cloud:deploy
 After deployment, copy the URLs from the deployment output:
 
 ```
-US Function URL: https://us-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-east1
-Asia Function URL: https://asia-northeast1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-northeast1
-Europe Function URL: https://europe-west3-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west3
+US Function URL: https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-central1
+Asia Function URL: https://asia-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-east1
+Europe Function URL: https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west1
 ```
 
 Add these to your `.env` file:
 
 ```
-US_FUNCTION_URL=https://us-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-east1
-ASIA_FUNCTION_URL=https://asia-northeast1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-northeast1
-EUROPE_FUNCTION_URL=https://europe-west3-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west3
+US_FUNCTION_URL=https://us-central1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-us-central1
+ASIA_FUNCTION_URL=https://asia-east1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-asia-east1
+EUROPE_FUNCTION_URL=https://europe-west1-YOUR_PROJECT_ID.cloudfunctions.net/quick-buy-europe-west1
 ```
 
 ## Troubleshooting
