@@ -1,0 +1,180 @@
+#!/usr/bin/env node
+
+const { exec } = require('child_process');
+const { promisify } = require('util');
+const fs = require('fs');
+const path = require('path');
+const execAsync = promisify(exec);
+
+// Get regions from environment or use defaults
+const REGIONS = process.env.GCLOUD_REGIONS?.split(',') || [
+  'us-central1',  // Iowa
+  'asia-east1',   // Taiwan
+  'europe-west1'  // Belgium
+];
+
+// Get project ID from environment
+const PROJECT_ID = process.env.PROJECT_ID || 'ethereum-node1';
+
+async function deployToRegion(region) {
+  console.log(`Deploying to ${region}...`);
+  
+  try {
+    // Add region to environment variables
+    const envContent = fs.readFileSync('.env.cloud', 'utf8');
+    const updatedContent = `${envContent}\nFUNCTION_REGION: "${region}"`;
+    const tempEnvPath = `.env.${region}`;
+    fs.writeFileSync(tempEnvPath, updatedContent);
+
+    // Create cloud directory if it doesn't exist
+    if (!fs.existsSync('cloud')) {
+      fs.mkdirSync('cloud');
+    }
+
+    // Copy necessary files to cloud directory
+    const baseSourceDir = path.join(__dirname, '..', 'src', 'base-scripts'); // Absolute path to source dir
+    const baseDestDir = path.join(__dirname, '..', 'cloud'); // Absolute path to dest dir
+
+    const filesToCopyRelative = [ // Paths relative to baseSourceDir
+      'function.js',
+      'quick-buy.js',
+      'shyft-market.js',
+      'test-ata.js',
+      'test-ws-raw.js',
+      'lib/amm-decoder.js',
+      'lib/market-decoder.js'
+    ];
+
+    // Ensure cloud directory and necessary subdirectories (like lib) exist
+    if (!fs.existsSync(baseDestDir)) {
+      fs.mkdirSync(baseDestDir, { recursive: true });
+    }
+    const libDestDir = path.join(baseDestDir, 'lib');
+    if (!fs.existsSync(libDestDir)) {
+      fs.mkdirSync(libDestDir, { recursive: true });
+    }
+
+    // Copy files using absolute paths
+    for (const relativeFile of filesToCopyRelative) {
+      const sourcePath = path.join(baseSourceDir, relativeFile);
+      const destPath = path.join(baseDestDir, relativeFile); // Destination path mirrors relative structure
+      const destDir = path.dirname(destPath);
+
+      // Ensure destination directory exists (should already exist due to earlier checks, but safe)
+      if (!fs.existsSync(destDir)) {
+        fs.mkdirSync(destDir, { recursive: true });
+      }
+      
+      try { // Add try-catch around copy for better debugging
+        fs.copyFileSync(sourcePath, destPath);
+        console.log(`Copied ${sourcePath} to ${destPath}`);
+      } catch (copyError) {
+        console.error(`Failed to copy ${sourcePath} to ${destPath}:`, copyError);
+        throw copyError; // Re-throw to stop deployment for this region
+      }
+    }
+
+    // Copy package.json to cloud directory (using absolute paths)
+    // NOTE: Source path 'Base scripts/package.json' might be incorrect based on file listing.
+    //       Keeping it as is for now to address the primary reported error.
+    const packageJsonSourcePath = path.join(__dirname, '..', 'Base scripts', 'package.json');
+    const packageJsonDestPath = path.join(baseDestDir, 'package.json');
+    try {
+      const packageJsonContent = fs.readFileSync(packageJsonSourcePath, 'utf8');
+      const packageJson = JSON.parse(packageJsonContent);
+      fs.writeFileSync(packageJsonDestPath, JSON.stringify(packageJson, null, 2));
+      console.log(`Copied ${packageJsonSourcePath} to ${packageJsonDestPath}`);
+    } catch (pkgError) {
+        console.error(`Failed to copy package.json from ${packageJsonSourcePath}:`, pkgError);
+        // Consider if this error should halt the deployment. Currently, it does not.
+        // throw pkgError;
+    }
+
+    // Deploy to Google Cloud Functions
+    const command = `gcloud functions deploy quick-buy-${region} \
+      --gen2 \
+      --runtime=nodejs20 \
+      --region=${region} \
+      --source=./cloud \
+      --entry-point=quickBuyFunction \
+      --trigger-http \
+      --allow-unauthenticated \
+      --env-vars-file=${tempEnvPath} \
+      --memory=4096MB \
+      --cpu=2 \
+      --timeout=540s \
+      --min-instances=1 \
+      --max-instances=100 \
+      --concurrency=100 \
+      --ingress-settings=all \
+      --service-account=quick-buy-function@${PROJECT_ID}.iam.gserviceaccount.com`;
+
+    const { stdout, stderr } = await execAsync(command);
+    console.log(`Deployed to ${region}:`, stdout);
+    if (stderr) console.error(`Warnings for ${region}:`, stderr);
+    
+    // Clean up temp env file
+    fs.unlinkSync(tempEnvPath);
+    
+    return true;
+  } catch (error) {
+    console.error(`Failed to deploy to ${region}:`, error.message);
+    // Clean up temp env file in case of error
+    try {
+      fs.unlinkSync(`.env.${region}`);
+    } catch (e) {
+      // Ignore cleanup errors
+    }
+    return false;
+  }
+}
+
+async function deployAll() {
+  console.log('Starting deployment to all regions...');
+  
+  const results = await Promise.all(
+    REGIONS.map(region => deployToRegion(region))
+  );
+  
+  const successful = results.filter(Boolean).length;
+  console.log(`\nDeployment complete: ${successful}/${REGIONS.length} regions successful`);
+  
+  if (successful === REGIONS.length) {
+    console.log('\nAll deployments successful! Function URLs:');
+    REGIONS.forEach(region => {
+      console.log(`${region}: https://${region}-${PROJECT_ID}.cloudfunctions.net/quick-buy-${region}`);
+    });
+  } else {
+    console.log('\nSome deployments failed. Check errors above.');
+    process.exit(1);
+  }
+}
+
+// Create PubSub topic if it doesn't exist
+async function setupPubSub() {
+  try {
+    console.log('Setting up PubSub topic...');
+    await execAsync(`gcloud pubsub topics create quick-buy-results --project=${PROJECT_ID}`);
+    console.log('PubSub topic created successfully');
+  } catch (error) {
+    if (error.message.includes('already exists')) {
+      console.log('PubSub topic already exists');
+    } else {
+      console.error('Failed to create PubSub topic:', error.message);
+      process.exit(1);
+    }
+  }
+}
+
+// Main deployment process
+async function main() {
+  try {
+    await setupPubSub();
+    await deployAll();
+  } catch (error) {
+    console.error('Deployment failed:', error.message);
+    process.exit(1);
+  }
+}
+
+main();

@@ -1,4 +1,3 @@
-// Implementation of test-ata.js for cloud function
 const {
   Connection,
   PublicKey,
@@ -12,14 +11,12 @@ const {
   TOKEN_PROGRAM_ID
 } = require("@solana/spl-token");
 
-// Sleep function to wait between operations
 async function sleep(ms) {
   return new Promise(resolve => setTimeout(resolve, ms));
 }
 
-// Wait for transaction confirmation
 async function waitForConfirmation(connection, signature) {
-  console.log('Waiting for ATA confirmation...');
+  console.log('Waiting for confirmation...');
   
   // Wait for transaction to propagate
   await sleep(2000);
@@ -29,7 +26,7 @@ async function waitForConfirmation(connection, signature) {
     try {
       const response = await connection.getSignatureStatus(signature);
       const status = response?.value;
-      console.log(`ATA Status check ${i + 1}/5:`, status?.confirmationStatus || 'unknown');
+      console.log(`Status check ${i + 1}/5:`, status?.confirmationStatus || 'unknown');
       
       if (status?.err) {
         throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
@@ -38,11 +35,11 @@ async function waitForConfirmation(connection, signature) {
       if (status?.confirmationStatus === 'processed' || 
           status?.confirmationStatus === 'confirmed' || 
           status?.confirmationStatus === 'finalized') {
-        console.log('ATA Transaction confirmed!');
+        console.log('Transaction confirmed!');
         return true;
       }
     } catch (error) {
-      console.log(`Error checking ATA status: ${error.message}`);
+      console.log(`Error checking status: ${error.message}`);
     }
     
     if (i < 4) { // Don't sleep on the last iteration
@@ -50,10 +47,9 @@ async function waitForConfirmation(connection, signature) {
     }
   }
   
-  throw new Error('ATA Transaction confirmation timeout');
+  throw new Error('Transaction confirmation timeout');
 }
 
-// Get or Create Associated Token Account
 async function getOrCreateATA(connection, wallet, mint) {
   const startTime = Date.now();
   
@@ -104,13 +100,14 @@ async function getOrCreateATA(connection, wallet, mint) {
     transaction.feePayer = wallet.publicKey;
 
     // Sign and send transaction
-    console.log('Sending ATA transaction...');
+    console.log('Sending transaction...');
     transaction.sign(wallet);
     const signature = await connection.sendRawTransaction(transaction.serialize(), {
       skipPreflight: false,
-      preflightCommitment: 'processed'
+      preflightCommitment: 'processed',
+      maxRetries: 3
     });
-    console.log(`ATA Transaction sent: ${signature}`);
+    console.log(`Transaction sent: ${signature}`);
 
     // Wait for confirmation
     await waitForConfirmation(connection, signature);

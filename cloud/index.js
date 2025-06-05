@@ -7,8 +7,8 @@ const bs58 = require('bs58');
 const { setTimeout } = require('timers/promises');
 
 // Import local modules
-const { getOrCreateATA } = require('./test-ata.js');
-const { quickBuy } = require('./quick-buy.js');
+const { getOrCreateATA } = require('./lib/ata-manager');
+const { quickBuy } = require('./lib/amm-manager');
 
 // Constants
 const RAYDIUM_PROGRAM_ID = '675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8';
@@ -533,6 +533,14 @@ async function checkTokenAge(tokenMint) {
 // Parse port as an integer to ensure proper binding
 const port = parseInt(process.env.PORT) || 8080;
 console.log(`Listening on port ${port} for health checks`);
-functions.start({
-  port
+require('@google-cloud/functions-framework').http('quickBuyFunction', (req, res) => {}); // Dummy to keep framework happy
+const { createServer } = require('http');
+
+const healthServer = createServer((req, res) => {
+  res.writeHead(200);
+  res.end('OK');
+});
+
+healthServer.listen(port, () => {
+  console.log(`Health check server running on port ${port}`);
 });

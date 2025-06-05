@@ -9,6 +9,8 @@ import {
 } from '@modelcontextprotocol/sdk/types.js';
 import { Keypair } from '@solana/web3.js';
 import dotenv from 'dotenv';
+import path from 'path';
+import { fileURLToPath } from 'url';
 import { RegionManager } from './lib/region-manager.js';
 import { TokenParser } from './lib/token-parser.js';
 import { SnipeTokenTool } from './tools/snipe-token.js';
@@ -37,8 +39,16 @@ interface ConfigureParametersArgs {
 
 interface StatusArgs {}
 
-// Load environment variables
-dotenv.config();
+// Get the directory of the current module (works correctly after compilation to build/)
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+// Construct the absolute path to the .env file in the project root (one level up from build/)
+const envPath = path.resolve(__dirname, '../.env');
+
+// Load environment variables from the specified path
+dotenv.config({ path: envPath });
+console.error(`[Startup] Loading .env from: ${envPath}`); // Added for debugging
 
 // Redirect all console.log to stderr to avoid interfering with JSON-RPC communication
 const originalConsoleLog = console.log;

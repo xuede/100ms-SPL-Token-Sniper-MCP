@@ -19,6 +19,10 @@ import {
   SelectValue,
 } from "@/components/ui/select";
 import { StdErrNotification } from "@/lib/notificationTypes";
+import {
+  LoggingLevel,
+  LoggingLevelSchema,
+} from "@modelcontextprotocol/sdk/types.js";
 
 import useTheme from "../lib/useTheme";
 import { version } from "../../../package.json";
@@ -39,6 +43,9 @@ interface SidebarProps {
   setBearerToken: (token: string) => void;
   onConnect: () => void;
   stdErrNotifications: StdErrNotification[];
+  logLevel: LoggingLevel;
+  sendLogLevelRequest: (level: LoggingLevel) => void;
+  loggingSupported: boolean;
 }
 
 const Sidebar = ({
@@ -57,6 +64,9 @@ const Sidebar = ({
   setBearerToken,
   onConnect,
   stdErrNotifications,
+  logLevel,
+  sendLogLevelRequest,
+  loggingSupported,
 }: SidebarProps) => {
   const [theme, setTheme] = useTheme();
   const [showEnvVars, setShowEnvVars] = useState(false);
@@ -177,9 +187,17 @@ const Sidebar = ({
                           value={key}
                           onChange={(e) => {
                             const newKey = e.target.value;
-                            const newEnv = { ...env };
-                            delete newEnv[key];
-                            newEnv[newKey] = value;
+                            const newEnv = Object.entries(env).reduce(
+                              (acc, [k, v]) => {
+                                if (k === key) {
+                                  acc[newKey] = value;
+                                } else {
+                                  acc[k] = v;
+                                }
+                                return acc;
+                              },
+                              {} as Record<string, string>,
+                            );
                             setEnv(newEnv);
                             setShownEnvVars((prev) => {
                               const next = new Set(prev);
@@ -290,6 +308,28 @@ const Sidebar = ({
                     : "Disconnected"}
               </span>
             </div>
+
+            {loggingSupported && connectionStatus === "connected" && (
+              <div className="space-y-2">
+                <label className="text-sm font-medium">Logging Level</label>
+                <Select
+                  value={logLevel}
+                  onValueChange={(value: LoggingLevel) =>
+                    sendLogLevelRequest(value)
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select logging level" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.values(LoggingLevelSchema.enum).map((level) => (
+                      <SelectItem value={level}>{level}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {stdErrNotifications.length > 0 && (
               <>
                 <div className="mt-4 border-t border-gray-200 pt-4">
@@ -331,36 +371,37 @@ const Sidebar = ({
           </Select>
 
           <div className="flex items-center space-x-2">
-            <a
-              href="https://modelcontextprotocol.io/docs/tools/inspector"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="ghost" title="Inspector Documentation">
-                <CircleHelp className="w-4 h-4 text-gray-800" />
-              </Button>
-            </a>
-            <a
-              href="https://modelcontextprotocol.io/docs/tools/debugging"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button variant="ghost" title="Debugging Guide">
-                <Bug className="w-4 h-4 text-gray-800" />
-              </Button>
-            </a>
-            <a
-              href="https://github.com/modelcontextprotocol/inspector"
-              target="_blank"
-              rel="noopener noreferrer"
-            >
-              <Button
-                variant="ghost"
-                title="Report bugs or contribute on GitHub"
+            <Button variant="ghost" title="Inspector Documentation" asChild>
+              <a
+                href="https://modelcontextprotocol.io/docs/tools/inspector"
+                target="_blank"
+                rel="noopener noreferrer"
               >
-                <Github className="w-4 h-4 text-gray-800" />
-              </Button>
-            </a>
+                <CircleHelp className="w-4 h-4 text-foreground" />
+              </a>
+            </Button>
+            <Button variant="ghost" title="Debugging Guide" asChild>
+              <a
+                href="https://modelcontextprotocol.io/docs/tools/debugging"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Bug className="w-4 h-4 text-foreground" />
+              </a>
+            </Button>
+            <Button
+              variant="ghost"
+              title="Report bugs or contribute on GitHub"
+              asChild
+            >
+              <a
+                href="https://github.com/modelcontextprotocol/inspector"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                <Github className="w-4 h-4 text-foreground" />
+              </a>
+            </Button>
           </div>
         </div>
       </div>

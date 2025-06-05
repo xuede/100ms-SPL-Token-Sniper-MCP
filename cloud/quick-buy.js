@@ -1,4 +1,3 @@
-// Implementation of quick-buy for cloud function
 const {
   Connection,
   Keypair,
@@ -9,11 +8,18 @@ const {
   VersionedTransaction
 } = require('@solana/web3.js');
 const { TOKEN_PROGRAM_ID } = require('@solana/spl-token');
+const dotenv = require('dotenv');
 const bs58 = require('bs58');
 const BN = require('bn.js');
+const { 
+  RAYDIUM_PROGRAM_ID, 
+  getPoolAndMarketInfo, 
+  setActiveSearch, 
+  closeAllConnections 
+} = require('./shyft-market.js');
 const { getOrCreateATA } = require('./test-ata.js');
 
-// Constants - same as reference implementation
+// Constants
 const TX_TEMPLATE = {
   instructions: [
     ComputeBudgetProgram.setComputeUnitLimit({ units: 400_000 }),
@@ -25,30 +31,69 @@ const TX_TEMPLATE = {
 };
 
 const HARDCODED_WSOL = new PublicKey("DzsAERbVAab8pLxf419BjGbigNYVjwc7gC4MydiWJK3h");
-const RAYDIUM_PROGRAM_ID = new PublicKey('675kPX9MHTjS2zt1qfr1NYHuzeLXfQM9H24wFSUt1Mp8');
+const heliusEndpoint = 'https://mainnet.helius-rpc.com/?api-key=471d92ec-a326-49b2-a911-9e4c20645554';
+const heliusConnection = new Connection(heliusEndpoint, {
+  commitment: 'processed',
+  confirmTransactionInitialTimeout: 10000,
+  wsEndpoint: null
+});
+
+// Initialize wallet
+const wallet = Keypair.fromSecretKey(bs58.decode(process.env.WALLET_PRIVATE_KEY));
 
 // Blockhash caching
 let cachedBlockhash = null;
 let lastBlockhashTime = 0;
+let blockhashInterval = null;
 const FAST_CACHE_INTERVAL = 50;
 
-async function getLatestBlockhashWithCache(connection) {
+async function getLatestBlockhashWithCache() {
   const now = Date.now();
   if (cachedBlockhash && now - lastBlockhashTime < FAST_CACHE_INTERVAL) {
     return cachedBlockhash;
   }
 
   try {
-    const { blockhash, lastValidBlockHeight } = await connection.getLatestBlockhash('processed');
-    cachedBlockhash = { blockhash, lastValidBlockHeight };
-    lastBlockhashTime = now;
-    return cachedBlockhash;
+    const response = await fetch(heliusEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'getLatestBlockhash',
+        params: [{ commitment: 'processed' }]
+      })
+    });
+
+    const data = await response.json();
+    if (data?.result?.value) {
+      const { blockhash, lastValidBlockHeight } = data.result.value;
+      cachedBlockhash = { blockhash, lastValidBlockHeight };
+      lastBlockhashTime = now;
+      return cachedBlockhash;
+    }
+    throw new Error('Invalid blockhash response');
   } catch (error) {
     throw new Error(`Failed to get blockhash: ${error.message}`);
   }
 }
 
-async function buildTransaction(marketInfo, tokenAccountAddress, blockhash, wallet) {
+function setBlockhashCacheSpeed(fast = false) {
+  if (blockhashInterval) {
+    clearInterval(blockhashInterval);
+  }
+  
+  const interval = fast ? FAST_CACHE_INTERVAL : 1000;
+  blockhashInterval = setInterval(async () => {
+    try {
+      await getLatestBlockhashWithCache();
+    } catch (error) {
+      // Silent error - will retry on next interval
+    }
+  }, interval);
+}
+
+async function buildTransaction(marketInfo, tokenAccountAddress, blockhash) {
   try {
     const minimumOut = Math.floor(TX_TEMPLATE.lamportsIn * TX_TEMPLATE.minimumOutBps / 10000);
     
@@ -104,10 +149,33 @@ async function buildTransaction(marketInfo, tokenAccountAddress, blockhash, wall
 
 async function sendTransaction(connection, transaction) {
   try {
-    const signature = await connection.sendTransaction(transaction, {
-      skipPreflight: true,
-      preflightCommitment: 'processed'
+    const rawTransaction = transaction.serialize();
+    
+    const response = await fetch(heliusEndpoint, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        jsonrpc: '2.0',
+        id: 1,
+        method: 'sendTransaction',
+        params: [
+          bs58.encode(rawTransaction),
+          {
+            encoding: 'base58',
+            skipPreflight: true,
+            preflightCommitment: 'processed',
+            maxRetries: 0
+          }
+        ]
+      })
     });
+    
+    const data = await response.json();
+    if (data.error) {
+      throw new Error(`RPC error: ${JSON.stringify(data.error)}`);
+    }
+    
+    const signature = data.result;
     
     return { signature, success: true };
   } catch (error) {
@@ -116,75 +184,37 @@ async function sendTransaction(connection, transaction) {
   }
 }
 
-async function waitForConfirmation(connection, signature) {
-  console.log('Waiting for confirmation...');
-  
-  // Wait for transaction to propagate
-  await new Promise(resolve => setTimeout(resolve, 2000));
-  
-  // Try up to 5 times with 2 second intervals
-  for (let i = 0; i < 5; i++) {
+async function quickBuy(tokenMint) {
+    setActiveSearch(tokenMint);
+    setBlockhashCacheSpeed(true);
+
     try {
-      const response = await connection.getSignatureStatus(signature);
-      const status = response?.value;
-      console.log(`Status check ${i + 1}/5:`, status?.confirmationStatus || 'unknown');
-      
-      if (status?.err) {
-        throw new Error(`Transaction failed: ${JSON.stringify(status.err)}`);
-      }
-      
-      if (status?.confirmationStatus === 'processed' || 
-          status?.confirmationStatus === 'confirmed' || 
-          status?.confirmationStatus === 'finalized') {
-        console.log('Transaction confirmed!');
-        return true;
-      }
-    } catch (error) {
-      console.log(`Error checking status: ${error.message}`);
-    }
-    
-    if (i < 4) { // Don't sleep on the last iteration
-      await new Promise(resolve => setTimeout(resolve, 2000));
-    }
-  }
-  
-  throw new Error('Transaction confirmation timeout');
-}
+        const [poolResult, { address: ata }] = await Promise.all([
+            getPoolAndMarketInfo(tokenMint, heliusConnection),
+            getOrCreateATA(heliusConnection, wallet, tokenMint)
+        ]);
 
-async function quickBuy(connection, wallet, tokenMint, marketInfo) {
-    try {
-        console.log(`Quick buy initiated for token ${tokenMint}`);
-        
-        // Get or create ATA
-        const { address: ata } = await getOrCreateATA(connection, wallet, tokenMint);
-        console.log(`Using ATA: ${ata.toString()}`);
+        if (!poolResult || !Array.isArray(poolResult)) {
+            throw new Error('No pool found for token');
+        }
 
-        // Get fresh blockhash
-        const { blockhash } = await getLatestBlockhashWithCache(connection);
-        console.log(`Using blockhash: ${blockhash}`);
+        const [marketInfo, source] = poolResult;
 
-        // Build transaction
-        const transaction = await buildTransaction(marketInfo, ata, blockhash, wallet);
-        
-        // Send transaction
-        console.log('Sending transaction...');
-        const { signature } = await sendTransaction(connection, transaction);
-        console.log(`Transaction sent: ${signature}`);
+        if (!cachedBlockhash) {
+            await getLatestBlockhashWithCache();
+        }
 
-        // Wait for confirmation
-        await waitForConfirmation(connection, signature);
-        
-        return {
-            success: true,
-            signature,
-            ata: ata.toString()
-        };
+        const transaction = await buildTransaction(marketInfo, ata, cachedBlockhash.blockhash);
+        const { signature } = await sendTransaction(heliusConnection, transaction);
+
+        return signature;
     } catch (error) {
         console.error(`Error in quickBuy: ${error.message}`);
-        return {
-            success: false,
-            error: error.message
-        };
+        throw error;
+    } finally {
+        closeAllConnections();
+        setActiveSearch(null);
+        setBlockhashCacheSpeed(false);
     }
 }
 

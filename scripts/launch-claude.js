@@ -1,9 +1,12 @@
 #!/usr/bin/env node
 
-const { execSync, spawn } = require('child_process');
-const path = require('path');
-const fs = require('fs');
-const dotenv = require('dotenv');
+import { execSync, spawn } from 'child_process';
+import path from 'path';
+import fs from 'fs';
+import dotenv from 'dotenv';
+import { fileURLToPath } from 'url';
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
 
 // Load environment variables
 dotenv.config();
@@ -12,7 +15,11 @@ dotenv.config();
 const rootDir = path.join(__dirname, '..');
 
 // Path to Claude Desktop app
-const claudeAppPath = '/Applications/Claude.app';
+import os from 'os';
+
+const claudeAppPath = os.platform() === 'win32'
+  ? path.join(process.env.LOCALAPPDATA || '', 'AnthropicClaude', 'claude.exe')
+  : '/Applications/Claude.app';
 
 // Check if Claude Desktop is installed
 if (!fs.existsSync(claudeAppPath)) {
@@ -25,7 +32,9 @@ if (!fs.existsSync(claudeAppPath)) {
 const homeDir = process.env.HOME || process.env.USERPROFILE;
 
 // Path to Claude Desktop config file
-const claudeConfigPath = path.join(homeDir, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
+const claudeConfigPath = os.platform() === 'win32'
+  ? path.join(homeDir, 'AppData', 'Roaming', 'Claude', 'claude_desktop_config.json')
+  : path.join(homeDir, 'Library', 'Application Support', 'Claude', 'claude_desktop_config.json');
 
 // Check if MCP settings exist
 if (!fs.existsSync(claudeConfigPath)) {
@@ -85,21 +94,34 @@ fs.writeFileSync(claudeConfigPath, JSON.stringify(claudeConfig, null, 2));
 // Launch Claude Desktop
 console.log('🚀 Launching Claude Desktop...');
 try {
-  // Check if Claude is already running
-  try {
+// Check if Claude is already running
+try {
+  if (os.platform() === 'win32') {
+    // Windows: use tasklist and taskkill
+    execSync('tasklist /FI "IMAGENAME eq claude.exe" /NH');
+    console.log('Claude Desktop is already running. Restarting...');
+    execSync('taskkill /IM claude.exe /F');
+    // Wait a moment for the app to close
+    execSync('timeout /T 1 /NOBREAK');
+  } else {
     execSync('pgrep -f "Claude.app"');
     console.log('Claude Desktop is already running. Restarting...');
     execSync('pkill -f "Claude.app"');
     // Wait a moment for the app to close
     execSync('sleep 1');
-  } catch (error) {
-    // Claude is not running, which is fine
   }
-  
-  // Launch Claude
+} catch (error) {
+  // Claude is not running, which is fine
+}
+
+// Launch Claude
+if (os.platform() === 'win32') {
+  spawn(claudeAppPath, [], { detached: true, stdio: 'ignore' }).unref();
+} else {
   spawn('open', [claudeAppPath], { detached: true });
-  
-  console.log('✅ Claude Desktop launched successfully!');
+}
+
+console.log('✅ Claude Desktop launched successfully!');
   console.log('\nYou can now use the 100ms Sniper MCP with Claude Desktop.');
   console.log('Try asking Claude to:');
   console.log('  - "Show me the status of my sniper bot"');

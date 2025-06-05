@@ -40,6 +40,10 @@ export class Server {
     // Handle incoming messages
     this.rl.on('line', async (line) => {
       try {
+        if (!line.trim().startsWith('{') && !line.trim().startsWith('[')) {
+          console.error('Ignoring non-JSON line:', line);
+          return;
+        }
         const message = JSON.parse(line);
         
         // Handle initialize message

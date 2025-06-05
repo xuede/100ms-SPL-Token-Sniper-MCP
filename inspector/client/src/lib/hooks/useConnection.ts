@@ -10,6 +10,7 @@ import {
   ListRootsRequestSchema,
   ProgressNotificationSchema,
   ResourceUpdatedNotificationSchema,
+  LoggingMessageNotificationSchema,
   Request,
   Result,
   ServerCapabilities,
@@ -18,6 +19,10 @@ import {
   McpError,
   CompleteResultSchema,
   ErrorCode,
+  CancelledNotificationSchema,
+  ResourceListChangedNotificationSchema,
+  ToolListChangedNotificationSchema,
+  PromptListChangedNotificationSchema,
 } from "@modelcontextprotocol/sdk/types.js";
 import { useState } from "react";
 import { toast } from "react-toastify";
@@ -249,15 +254,24 @@ export function useConnection({
       });
 
       if (onNotification) {
-        client.setNotificationHandler(
+        [
+          CancelledNotificationSchema,
           ProgressNotificationSchema,
-          onNotification,
-        );
-
-        client.setNotificationHandler(
+          LoggingMessageNotificationSchema,
           ResourceUpdatedNotificationSchema,
-          onNotification,
-        );
+          ResourceListChangedNotificationSchema,
+          ToolListChangedNotificationSchema,
+          PromptListChangedNotificationSchema,
+        ].forEach((notificationSchema) => {
+          client.setNotificationHandler(notificationSchema, onNotification);
+        });
+
+        client.fallbackNotificationHandler = (
+          notification: Notification,
+        ): Promise<void> => {
+          onNotification(notification);
+          return Promise.resolve();
+        };
       }
 
       if (onStdErrNotification) {

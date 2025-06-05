@@ -1,0 +1,42 @@
+{
+  "mcpServers": {
+    "filesystem": {
+      "command": "node",
+      "args": [
+        "./scripts/launch-claude.cjs",
+        "--config",
+        "./.env.cloud"
+      ]
+    },
+    "100ms-SPL-Token-Sniper-MCP": {
+      "command": "echo",
+      "args": [
+        "c:\\Users\\mdub\\repos\\100ms-SPL-Token-Sniper-MCP\\mcp-wrapper.js"
+      ],
+      "endpoint": "https://us-central1-solsnipe1.cloudfunctions.net/quick-buy-us-central1",
+      "message": "Provides tools for sniping SPL tokens using deployed cloud functions.",
+      "options": {
+        "timeout": 30000,
+        "retries": 3,
+        "headers": {
+          "Authorization": "Bearer ${CLOUD_FUNCTION_TOKEN}",
+          "X-MCP-Version": "1.2.0"
+        }
+      },
+      "env": {
+        "WALLET_PRIVATE_KEY": "4GJM9krsjToy4uZJkGKRsfyxqdU5bdaDWDMW7ncEhhKGvWdA1v8dsNLQATLUBVYB8WsYTbmCo8DYYwuPum652FE1",
+        "HELIUS_API_KEY": "c9e236ae-b731-4841-8588-1acd13ae4790",
+        "REGIONS": "US,Asia,Europe",
+        "US_ENDPOINT": "https://us-central1-solsnipe1.cloudfunctions.net/quick-buy-us-central1",
+        "ASIA_ENDPOINT": "https://asia-east1-solsnipe1.cloudfunctions.net/quick-buy-asia-east1",
+        "EUROPE_ENDPOINT": "https://europe-west1-solsnipe1.cloudfunctions.net/quick-buy-europe-west1",
+        "DEFAULT_SLIPPAGE_BPS": "100",
+        "DEFAULT_MIN_PROFIT_SOL": "0.1",
+        "DEFAULT_MAX_GAS_SOL": "0.005",
+        "DEFAULT_TIMEOUT_MS": "200",
+        "PRIORITY_FEE_MICROLAMPORTS": "1000000",
+        "COMPUTE_UNITS": "400000"
+      }
+    }
+  }
+}

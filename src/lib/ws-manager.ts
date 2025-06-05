@@ -21,10 +21,16 @@ export class WebSocketManager {
   private onPoolFound: ((poolInfo: PoolInfo) => void) | null = null;
   private activeSearchTokenMint: string | null = null;
   private connectionAttempts: Map<string, number> = new Map();
-  private readonly MAX_RETRIES = 3;
+  private readonly MAX_RETRIES = 5; // Increased max retries
+  private readonly INITIAL_RECONNECT_DELAY = 1000; // 1 second
+  private readonly MAX_RECONNECT_DELAY = 30000; // 30 seconds
+  private pingIntervals: Map<string, NodeJS.Timeout> = new Map();
+  private lastPongReceived: Map<string, number> = new Map();
+  private readonly PING_INTERVAL_MS = 30000; // 30 seconds
+  private readonly PONG_TIMEOUT_MS = 45000; // 45 seconds (must be > PING_INTERVAL_MS)
 
   private readonly WS_ENDPOINTS = [
-    process.env.HELIUS_WS_ENDPOINT!,
+    process.env.HELIUS_WS_ENDPOINT!, // Prioritize Helius
     'wss://api.mainnet-beta.solana.com',
     // Only add Shyft if explicitly enabled
     ...(process.env.ENABLE_SHYFT_WS === 'true' ? [`wss://rpc.shyft.to?api_key=${process.env.SHYFT_API_KEY}`] : [])
@@ -39,126 +45,187 @@ export class WebSocketManager {
   private async initializeWebSockets() {
     console.error('[WS] Initializing WebSocket connections to:', this.WS_ENDPOINTS.join(', '));
     for (const endpoint of this.WS_ENDPOINTS) {
-      await this.initializeWebSocket(endpoint);
+      // Reset attempts for this initialization cycle
+      this.connectionAttempts.set(endpoint, 0);
+      this.initializeWebSocket(endpoint); // Don't await here, let them connect in parallel
     }
-    console.error(`[WS] ${this.wsConnections.size}/${this.WS_ENDPOINTS.length} WebSocket connections established`);
+    // Log status after a short delay to allow connections to establish
+    setTimeout(() => {
+      console.error(`[WS] Initial connection status: ${this.wsConnections.size}/${this.WS_ENDPOINTS.length} connections active`);
+    }, 7000); // Wait a bit longer than connection timeout
   }
 
-  private async initializeWebSocket(endpoint: string) {
-    if (this.wsConnections.has(endpoint)) {
-      try {
-        this.wsConnections.get(endpoint)?.terminate();
-      } catch (error) {
-        // Ignore termination errors
-      }
+  private initializeWebSocket(endpoint: string) {
+    const currentAttempts = this.connectionAttempts.get(endpoint) || 0;
+    if (currentAttempts >= this.MAX_RETRIES) {
+      console.error(`[WS] Max retries (${this.MAX_RETRIES}) reached for ${endpoint}. Stopping attempts.`);
+      return;
     }
 
+    // Clear any existing reconnect timeout for this endpoint
     if (this.wsReconnectTimeouts.has(endpoint)) {
       clearTimeout(this.wsReconnectTimeouts.get(endpoint)!);
       this.wsReconnectTimeouts.delete(endpoint);
     }
 
-    // Check retry count
-    const attempts = this.connectionAttempts.get(endpoint) || 0;
-    if (attempts >= this.MAX_RETRIES) {
-      console.error(`[WS] Max retries reached for ${endpoint}, skipping further attempts`);
-      return;
+    // Terminate existing connection if any
+    if (this.wsConnections.has(endpoint)) {
+      try {
+        console.warn(`[WS] Terminating existing connection for ${endpoint} before reconnecting.`);
+        this.wsConnections.get(endpoint)?.terminate();
+      } catch (termError) {
+        console.error(`[WS] Error terminating existing connection for ${endpoint}:`, termError);
+      }
+      this.wsConnections.delete(endpoint);
+      this.clearPingPongState(endpoint);
     }
 
-    return new Promise<void>((resolve) => {
-      try {
-        console.error(`[WS] Connecting to ${endpoint}`);
-        const ws = new WebSocket(endpoint);
+    console.log(`[WS] Attempt ${currentAttempts + 1}/${this.MAX_RETRIES}: Connecting to ${endpoint}`);
 
-        // Set connection timeout
-        const connectionTimeout = setTimeout(() => {
-          if (ws.readyState !== WebSocket.OPEN) {
-            console.error(`[WS] Connection timeout for ${endpoint}`);
-            ws.terminate();
-            this.wsConnections.delete(endpoint);
-            
-            // Increment retry count
-            this.connectionAttempts.set(endpoint, attempts + 1);
-            
-            resolve(); // Continue without WebSocket
-          }
-        }, 5000);
+    try {
+      const ws = new WebSocket(endpoint);
+      this.wsConnections.set(endpoint, ws); // Add early to track attempts
 
-        ws.on('open', () => {
-          clearTimeout(connectionTimeout);
-          console.error(`[WS] Connected to ${endpoint}`);
-          
-          // Reset retry count on successful connection
-          this.connectionAttempts.delete(endpoint);
-          
-          const subscribeMessage = {
-            jsonrpc: '2.0',
-            id: 1,
-            method: 'programSubscribe',
-            params: [
-              this.RAYDIUM_PROGRAM_ID,
-              {
-                encoding: 'base64',
-                commitment: 'processed'
-              }
-            ]
-          };
-          ws.send(JSON.stringify(subscribeMessage));
-          resolve();
-        });
+      const connectionTimeout = setTimeout(() => {
+        if (ws.readyState !== WebSocket.OPEN) {
+          console.error(`[WS] Connection timeout for ${endpoint}`);
+          ws.terminate(); // This will trigger 'close' event
+        }
+      }, 10000); // Increased connection timeout
 
-        ws.on('message', async (data: WebSocket.Data) => {
-          try {
-            const parsedData = JSON.parse(data.toString());
-            if (parsedData.id === 1) {
-              console.error(`[WS] Subscribed to Raydium program on ${endpoint}`);
-              return;
+      ws.on('open', () => {
+        clearTimeout(connectionTimeout);
+        console.log(`[WS] Connected to ${endpoint}`);
+        this.connectionAttempts.set(endpoint, 0); // Reset attempts on successful connection
+        this.lastPongReceived.set(endpoint, Date.now()); // Initialize pong time
+
+        // Start ping interval
+        this.clearPingInterval(endpoint); // Clear previous interval if any
+        this.pingIntervals.set(endpoint, setInterval(() => this.sendPing(endpoint), this.PING_INTERVAL_MS));
+
+        // Subscribe to program changes
+        const subscribeMessage = {
+          jsonrpc: '2.0',
+          id: 1,
+          method: 'programSubscribe',
+          params: [
+            this.RAYDIUM_PROGRAM_ID,
+            {
+              encoding: 'base64',
+              commitment: 'processed' // Use 'processed' for faster detection
             }
-            
-            // Handle program notifications
-            if (parsedData.params?.result?.value) {
-              await this.handleProgramNotification(parsedData.params.result.value, endpoint);
-            }
-          } catch (error) {
-            console.error(`[WS] Message parsing error on ${endpoint}:`, error);
+          ]
+        };
+        ws.send(JSON.stringify(subscribeMessage));
+      });
+
+      ws.on('message', async (data: WebSocket.Data) => {
+        this.lastPongReceived.set(endpoint, Date.now()); // Treat any message as activity
+        try {
+          const parsedData = JSON.parse(data.toString());
+          if (parsedData.id === 1 && parsedData.result) {
+            console.log(`[WS] Subscription successful on ${endpoint} (ID: ${parsedData.result})`);
+            return;
           }
-        });
-
-        ws.on('error', (error) => {
-          clearTimeout(connectionTimeout);
-          console.error(`[WS] Error on ${endpoint}:`, error);
-          this.wsConnections.delete(endpoint);
-          resolve(); // Continue without WebSocket
-          
-          // Only try to reconnect if we haven't exceeded max retries
-          if ((this.connectionAttempts.get(endpoint) || 0) < this.MAX_RETRIES) {
-            this.wsReconnectTimeouts.set(endpoint, setTimeout(() => {
-              this.initializeWebSocket(endpoint);
-            }, 1000));
+          if (parsedData.method === 'programNotification' && parsedData.params?.result?.value) {
+            await this.handleProgramNotification(parsedData.params.result.value, endpoint);
           }
-        });
+        } catch (error) {
+          console.error(`[WS] Message parsing error on ${endpoint}:`, error);
+        }
+      });
 
-        ws.on('close', () => {
-          clearTimeout(connectionTimeout);
-          console.error(`[WS] Connection closed for ${endpoint}`);
-          this.wsConnections.delete(endpoint);
-          resolve(); // Continue without WebSocket
-          
-          // Only try to reconnect if we haven't exceeded max retries
-          if ((this.connectionAttempts.get(endpoint) || 0) < this.MAX_RETRIES) {
-            this.wsReconnectTimeouts.set(endpoint, setTimeout(() => {
-              this.initializeWebSocket(endpoint);
-            }, 1000));
-          }
-        });
+      ws.on('pong', () => {
+        // console.log(`[WS] Pong received from ${endpoint}`);
+        this.lastPongReceived.set(endpoint, Date.now());
+      });
 
-        this.wsConnections.set(endpoint, ws);
+      ws.on('error', (error) => {
+        clearTimeout(connectionTimeout);
+        console.error(`[WS] Error on ${endpoint}: ${error.message}`);
+        // Close event will handle cleanup and reconnect
+      });
 
-      } catch (error) {
-        console.error(`[WS] Setup error for ${endpoint}:`, error);
-        resolve(); // Continue without WebSocket
+      ws.on('close', (code, reason) => {
+        clearTimeout(connectionTimeout);
+        const reasonStr = reason ? reason.toString() : 'No reason provided';
+        console.log(`[WS] Connection closed for ${endpoint}. Code: ${code}, Reason: ${reasonStr}`);
+        this.cleanupConnection(endpoint);
+        // Schedule reconnect only if not a normal closure (code 1000) and retries not exceeded
+        if (code !== 1000) {
+          this.scheduleReconnect(endpoint);
+        } else {
+           console.log(`[WS] Normal closure for ${endpoint}, not reconnecting.`);
+        }
+      });
+
+    } catch (error) {
+      console.error(`[WS] Failed to create WebSocket for ${endpoint}:`, error);
+      this.scheduleReconnect(endpoint); // Attempt to reconnect even if creation fails
+    }
+  }
+
+  private scheduleReconnect(endpoint: string) {
+    const attempts = (this.connectionAttempts.get(endpoint) || 0) + 1;
+    if (attempts > this.MAX_RETRIES) {
+      console.error(`[WS] Max retries (${this.MAX_RETRIES}) reached for ${endpoint}. Stopping attempts.`);
+      return;
+    }
+    this.connectionAttempts.set(endpoint, attempts);
+
+    // Exponential backoff with jitter
+    const delay = Math.min(
+      this.INITIAL_RECONNECT_DELAY * Math.pow(2, attempts - 1),
+      this.MAX_RECONNECT_DELAY
+    );
+    const jitter = delay * 0.2 * (Math.random() - 0.5); // +/- 10% jitter
+    const reconnectDelay = Math.max(500, delay + jitter); // Ensure minimum 500ms delay
+
+    console.log(`[WS] Scheduling reconnect attempt ${attempts}/${this.MAX_RETRIES} for ${endpoint} in ${reconnectDelay.toFixed(0)}ms`);
+
+    // Clear previous timeout if exists
+    if (this.wsReconnectTimeouts.has(endpoint)) {
+      clearTimeout(this.wsReconnectTimeouts.get(endpoint)!);
+    }
+
+    this.wsReconnectTimeouts.set(endpoint, setTimeout(() => {
+      this.initializeWebSocket(endpoint);
+    }, reconnectDelay));
+  }
+
+  private sendPing(endpoint: string) {
+    const ws = this.wsConnections.get(endpoint);
+    if (ws && ws.readyState === WebSocket.OPEN) {
+      // Check if pong was received recently
+      const lastPong = this.lastPongReceived.get(endpoint) || 0;
+      if (Date.now() - lastPong > this.PONG_TIMEOUT_MS) {
+        console.warn(`[WS] Pong timeout for ${endpoint}. Terminating connection.`);
+        ws.terminate(); // Will trigger 'close' and reconnect logic
+        return;
       }
-    });
+      // console.log(`[WS] Sending ping to ${endpoint}`);
+      ws.ping();
+    } else {
+       console.warn(`[WS] Cannot send ping, WebSocket not open for ${endpoint}. State: ${ws?.readyState}`);
+       this.clearPingInterval(endpoint); // Stop pinging if connection is not open
+    }
+  }
+
+  private cleanupConnection(endpoint: string) {
+      this.wsConnections.delete(endpoint);
+      this.clearPingPongState(endpoint);
+  }
+
+  private clearPingInterval(endpoint: string) {
+      if (this.pingIntervals.has(endpoint)) {
+          clearInterval(this.pingIntervals.get(endpoint)!);
+          this.pingIntervals.delete(endpoint);
+      }
+  }
+
+  private clearPingPongState(endpoint: string) {
+      this.clearPingInterval(endpoint);
+      this.lastPongReceived.delete(endpoint);
   }
 
   private async handleProgramNotification(notification: any, endpoint: string) {

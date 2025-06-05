@@ -3,7 +3,7 @@
   "version": "1.0.0",
   "type": "module",
   "scripts": {
-    "build": "tsc && chmod +x build/index.js",
+    "build": "tsc",
     "start": "node build/index.js",
     "start:mock": "node build/index.mock.js",
     "postinstall": "node scripts/make-executable.js",
@@ -37,6 +37,6 @@
     "@types/bs58": "^4.0.4",
     "@types/node": "^20.10.4",
     "@types/ws": "^8.18.0",
-    "typescript": "^5.3.3"
+    "typescript": "5.8.2"
   }
 }
