@@ -39,7 +39,7 @@ envVars['FUNCTION_DEBUG'] = 'true';
 envVars['FUNCTION_MEMORY_MB'] = '4096';
 envVars['FUNCTION_CPU'] = '2';
 envVars['FUNCTION_TIMEOUT'] = '540';
-envVars['FUNCTION_CONCURRENCY'] = '100';
+envVars['FUNCTION_CONCURRENCY'] = '5';
 
 // Make sure PROJECT_ID is set
 if (!envVars.PROJECT_ID) {

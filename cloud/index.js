@@ -529,10 +529,6 @@ async function checkTokenAge(tokenMint) {
   }
 }
 
-// For Google Cloud Function healthcheck - explicitly listen on the PORT env var
-// Parse port as an integer to ensure proper binding
-const port = parseInt(process.env.PORT) || 8080;
-console.log(`Listening on port ${port} for health checks`);
-functions.start({
-  port
-});
+// The @google-cloud/functions-framework handles starting the server
+// for HTTP-triggered functions automatically.
+// Explicitly calling functions.start() here can cause conflicts.

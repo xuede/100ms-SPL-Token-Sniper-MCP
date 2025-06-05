@@ -16,7 +16,7 @@
     "setup-demo": "pnpm run build && node scripts/launch-claude-mock.js",
     "cloud:setup": "cd cloud && bash setup-cloud.sh",
     "cloud:build": "cd cloud && pnpm install && pnpm run build",
-    "cloud:deploy": "cd cloud && node deploy.js",
+    "cloud:deploy": "cd cloud && node format-env.js && node deploy.js",
     "benchmark:rpc": "node scripts/compare-rpc-latency.js"
   },
   "dependencies": {
@@ -39,5 +39,13 @@
     "@types/node": "^20.10.4",
     "@types/ws": "^8.18.0",
     "typescript": "^5.3.3"
+  },
+  "pnpm": {
+    "onlyBuiltDependencies": [
+      "bigint-buffer",
+      "bufferutil",
+      "esbuild",
+      "utf-8-validate"
+    ]
   }
 }
