@@ -101,7 +101,8 @@ export async function mockConfigureParameters(
 - Max retries: ${mockParameters.maxRetries}
 - Active regions: ${mockParameters.regions.join(', ')}
 
-To update parameters, provide at least one of: defaultSlippageBps, defaultAmountSol, gasPriority.`
+  To update parameters, provide at least one of: defaultSlippageBps, defaultAmountSol, gasPriority.
+  `
         }
       ]
     };
